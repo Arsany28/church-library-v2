@@ -89,6 +89,19 @@ function handleRequest(request) {
       };
     } 
     
+    // 5. عمليات الكتالوج العام وطلبات الاستعارة الذاتية (بدون تسجيل دخول)
+    else if (action === 'getPublicCatalog') {
+      result = {
+        status: 'success',
+        data: getPublicCatalogData()
+      };
+    } else if (action === 'submitGuestRequest') {
+      result = {
+        status: 'success',
+        data: submitGuestRequestData(request.newRequest)
+      };
+    }
+    
     // إجراء غير معرّف
     else {
       result = {

@@ -177,3 +177,73 @@ function saveLibraryData(auth, data) {
     lock.releaseLock();
   }
 }
+
+/**
+ * جلب بيانات الكتالوج العام للجمهور (بدون تسجيل دخول)
+ * يُرجع فقط بيانات الكتب والاستعارات النشطة بدون كشف أسماء المستعيرين
+ */
+function getPublicCatalogData() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  var booksSheet = ss.getSheetByName('books');
+  var loansSheet = ss.getSheetByName('loans');
+  
+  var books = [];
+  var loans = [];
+  
+  if (booksSheet && booksSheet.getLastRow() > 1) {
+    var booksData = booksSheet.getDataRange().getValues();
+    var booksHeaders = booksData[0];
+    for (var i = 1; i < booksData.length; i++) {
+      var row = booksData[i];
+      if (!row[0] && !row[1]) continue; // skip empty rows
+      var book = {};
+      for (var j = 0; j < booksHeaders.length; j++) {
+        book[booksHeaders[j]] = row[j];
+      }
+      books.push(book);
+    }
+  }
+  
+  if (loansSheet && loansSheet.getLastRow() > 1) {
+    var loansData = loansSheet.getDataRange().getValues();
+    var loansHeaders = loansData[0];
+    for (var i = 1; i < loansData.length; i++) {
+      var row = loansData[i];
+      if (!row[0] && !row[1]) continue;
+      var loan = {};
+      for (var j = 0; j < loansHeaders.length; j++) {
+        // إخفاء بيانات المستعيرين الحساسة من الكتالوج العام
+        if (loansHeaders[j] === 'borrowerName' || loansHeaders[j] === 'borrowerPhone') {
+          loan[loansHeaders[j]] = '***';
+        } else {
+          loan[loansHeaders[j]] = row[j];
+        }
+      }
+      loans.push(loan);
+    }
+  }
+  
+  return { books: books, loans: loans };
+}
+
+/**
+ * حفظ طلب استعارة ذاتي من الجمهور (بدون تسجيل دخول)
+ */
+function submitGuestRequestData(newRequest) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var headers = ['id', 'bookId', 'bookTitle', 'borrowerName', 'borrowerPhone', 'createdAt', 'status'];
+  var sheet = getOrCreateSheet(ss, 'guest_requests', headers);
+  
+  sheet.appendRow([
+    newRequest.id || '',
+    newRequest.bookId || '',
+    newRequest.bookTitle || '',
+    newRequest.borrowerName || '',
+    newRequest.borrowerPhone || '',
+    newRequest.createdAt || new Date().toISOString(),
+    'pending'
+  ]);
+  
+  return { success: true };
+}
