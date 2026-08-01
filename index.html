@@ -3678,10 +3678,10 @@ const PublicCatalog = {
       return;
     }
     
-    // Limit DOM inserts during search to maximum 30 books to prevent layout reflow lag.
-    // If there are more, show a small hint.
+    // Limit DOM inserts during text search to maximum 30 books to prevent layout reflow lag.
+    // If a category filter is selected (without text search query), show ALL books in that category (no slice).
     const originalLength = list.length;
-    if (isFiltered && list.length > 30) {
+    if (isFiltered && q && list.length > 30) {
       list = list.slice(0, 30);
     }
     
@@ -3741,7 +3741,7 @@ const PublicCatalog = {
       ` + cardsHtml;
     } else {
       html = cardsHtml;
-      if (originalLength > 30) {
+      if (q && originalLength > 30) {
         html += `
           <div style="grid-column: 1/-1; text-align: center; padding: 20px; color: var(--text3); font-size: 0.9rem; border-top: 1px dashed var(--border); margin-top: 10px;">
             <i class="fas fa-info-circle" style="margin-left: 6px;"></i> يظهر أول 30 كتاباً فقط لتسريع العرض. يرجى تضييق نطاق البحث لمشاهدة الباقي.
