@@ -1126,7 +1126,7 @@ body.public-view #page-public-catalog-direct { display: block !important; }
       </p>
     </div>
     <div class="panel-body" style="padding: 28px;">
-      <!-- Search and Sort bar -->
+      <!-- Search, Sort and Category bar -->
       <div style="display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap;">
         <div style="display:flex; align-items:center; background:var(--surface2); border:1.5px solid var(--border); border-radius:30px; padding:10px 20px; gap:12px; box-shadow:0 2px 8px rgba(0,0,0,0.05); transition:border-color 0.2s; flex:2; min-width:250px;">
           <i class="fas fa-search" style="color:var(--primary); font-size:1.1rem;"></i>
@@ -1135,7 +1135,13 @@ body.public-view #page-public-catalog-direct { display: block !important; }
             placeholder="ابحث باسم الكتاب، المؤلف، أو التصنيف..."
             oninput="PublicCatalog.renderDirect()">
         </div>
-        <div style="display:flex; align-items:center; background:var(--surface2); border:1.5px solid var(--border); border-radius:30px; padding:6px 15px; gap:8px; box-shadow:0 2px 8px rgba(0,0,0,0.05); min-width:180px;">
+        <div style="display:flex; align-items:center; background:var(--surface2); border:1.5px solid var(--border); border-radius:30px; padding:6px 15px; gap:8px; box-shadow:0 2px 8px rgba(0,0,0,0.05); min-width:150px; flex:1;">
+          <i class="fas fa-filter" style="color:var(--primary);"></i>
+          <select id="public-direct-category" onchange="PublicCatalog.renderDirect()" style="border:none; background:transparent; outline:none; flex:1; font-size:0.9rem; color:var(--text); font-family:inherit; cursor:pointer;">
+            <option value="">كل التصنيفات</option>
+          </select>
+        </div>
+        <div style="display:flex; align-items:center; background:var(--surface2); border:1.5px solid var(--border); border-radius:30px; padding:6px 15px; gap:8px; box-shadow:0 2px 8px rgba(0,0,0,0.05); min-width:150px; flex:1;">
           <i class="fas fa-sort-amount-down" style="color:var(--primary);"></i>
           <select id="public-direct-sort" onchange="PublicCatalog.renderDirect()" style="border:none; background:transparent; outline:none; flex:1; font-size:0.9rem; color:var(--text); font-family:inherit; cursor:pointer;">
             <option value="title_asc">الاسم (أ - ي)</option>
@@ -3625,6 +3631,7 @@ const PublicCatalog = {
   _executeRenderDirect() {
     const q = (document.getElementById('public-direct-search')?.value || '').toLowerCase().trim();
     const sortBy = document.getElementById('public-direct-sort')?.value || 'title_asc';
+    const category = document.getElementById('public-direct-category')?.value || '';
     const grid = document.getElementById('public-direct-books-grid');
     if (!grid) return;
     
@@ -3641,6 +3648,12 @@ const PublicCatalog = {
       );
     }
     
+    // Apply Category filtering (التصنيف)
+    if (category) {
+      isFiltered = true;
+      list = list.filter(b => b.category === category);
+    }
+    
     // Apply sorting (الترتيب)
     list.sort((a, b) => {
       if (sortBy === 'title_asc') {
@@ -3655,7 +3668,7 @@ const PublicCatalog = {
       return 0;
     });
     
-    if (!q) {
+    if (!q && !category) {
       // Show only 12 books by default so it's clean and ultra-fast
       list = list.slice(0, 12);
     }
@@ -3718,11 +3731,11 @@ const PublicCatalog = {
     }).join('');
     
     let html = '';
-    if (!q) {
+    if (!q && !category) {
       html = `
         <div style="grid-column: 1/-1; text-align: center; padding: 20px 20px 40px; color: var(--text3);">
           <i class="fas fa-search" style="font-size: 3rem; color: var(--primary); opacity: 0.3; margin-bottom: 16px; display: block;"></i>
-          <p style="font-size: 1.1rem; font-weight: bold; margin-bottom: 8px;">اكتب اسم الكتاب أو الكاتب في خانة البحث بالأعلى لبدء التصفح 🔎</p>
+          <p style="font-size: 1.1rem; font-weight: bold; margin-bottom: 8px;">اكتب اسم الكتاب أو اختر تصنيفاً لبدء التصفح 🔎</p>
           <p style="font-size: 0.9rem; opacity: 0.8;">نعرض لك حالياً عينة من كتب المكتبة المتاحة:</p>
         </div>
       ` + cardsHtml;
@@ -3731,7 +3744,7 @@ const PublicCatalog = {
       if (originalLength > 30) {
         html += `
           <div style="grid-column: 1/-1; text-align: center; padding: 20px; color: var(--text3); font-size: 0.9rem; border-top: 1px dashed var(--border); margin-top: 10px;">
-            <i class="fas fa-info-circle" style="margin-left: 6px;"></i> يظهر أول 30 كتاباً فقط لتسريع العرض. يرجى كتابة تفاصيل أكثر لتضييق نطاق البحث.
+            <i class="fas fa-info-circle" style="margin-left: 6px;"></i> يظهر أول 30 كتاباً فقط لتسريع العرض. يرجى تضييق نطاق البحث لمشاهدة الباقي.
           </div>
         `;
       }
@@ -6357,6 +6370,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const data = await API.request('getPublicCatalog');
         Store.books = data.books || [];
         Store.loans = data.loans || [];
+        
+        // Populate Public Catalog Category Dropdown
+        const categories = [...new Set(Store.books.map(b => b.category).filter(Boolean))].sort();
+        const catSelect = document.getElementById('public-direct-category');
+        if (catSelect) {
+          catSelect.innerHTML = '<option value="">كل التصنيفات</option>' + 
+            categories.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+        }
+        
         PublicCatalog.renderDirect();
       } catch (err) {
         Toast.error('فشل تحميل الكتالوج العام: ' + err.message);
