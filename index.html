@@ -1126,14 +1126,23 @@ body.public-view #page-public-catalog-direct { display: block !important; }
       </p>
     </div>
     <div class="panel-body" style="padding: 28px;">
-      <!-- Search bar -->
-      <div style="position:relative; margin-bottom:24px;">
-        <div style="display:flex; align-items:center; background:var(--surface2); border:1.5px solid var(--border); border-radius:30px; padding:10px 20px; gap:12px; box-shadow:0 2px 8px rgba(0,0,0,0.05); transition:border-color 0.2s;">
+      <!-- Search and Sort bar -->
+      <div style="display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; background:var(--surface2); border:1.5px solid var(--border); border-radius:30px; padding:10px 20px; gap:12px; box-shadow:0 2px 8px rgba(0,0,0,0.05); transition:border-color 0.2s; flex:2; min-width:250px;">
           <i class="fas fa-search" style="color:var(--primary); font-size:1.1rem;"></i>
           <input type="text" id="public-direct-search"
             style="border:none; background:transparent; outline:none; flex:1; font-size:1rem; color:var(--text); font-family:inherit; direction:rtl;"
             placeholder="ابحث باسم الكتاب، المؤلف، أو التصنيف..."
             oninput="PublicCatalog.renderDirect()">
+        </div>
+        <div style="display:flex; align-items:center; background:var(--surface2); border:1.5px solid var(--border); border-radius:30px; padding:6px 15px; gap:8px; box-shadow:0 2px 8px rgba(0,0,0,0.05); min-width:180px;">
+          <i class="fas fa-sort-amount-down" style="color:var(--primary);"></i>
+          <select id="public-direct-sort" onchange="PublicCatalog.renderDirect()" style="border:none; background:transparent; outline:none; flex:1; font-size:0.9rem; color:var(--text); font-family:inherit; cursor:pointer;">
+            <option value="title_asc">الاسم (أ - ي)</option>
+            <option value="title_desc">الاسم (ي - أ)</option>
+            <option value="num_asc">الرقم (تصاعدي)</option>
+            <option value="num_desc">الرقم (تنازلي)</option>
+          </select>
         </div>
       </div>
       
@@ -2701,7 +2710,7 @@ const Dashboard = {
     
     tbody.innerHTML = list.map(req => `
       <tr>
-        <td class="fw-bold">${escHtml(req.bookTitle)}</td>
+        <td class="fw-bold">${escHtml(req.bookTitle)} ${req.requestedCondition ? `<span class="badge badge-secondary" style="margin-right:8px; font-size:0.75rem;">جودة: ${escHtml(req.requestedCondition)}</span>` : ''}</td>
         <td>${escHtml(req.borrowerName)}</td>
         <td dir="ltr">${escHtml(req.borrowerPhone)}</td>
         <td>${formatDate(req.createdAt)}</td>
@@ -2730,6 +2739,19 @@ const Dashboard = {
       document.getElementById('loan-book-search').value = book.title;
       document.getElementById('loan-book-id').value = book.id;
       Loans._selectBook(book);
+      
+      // Auto-select requested condition if available
+      if (req.requestedCondition) {
+        const condSelect = document.getElementById('loan-book-condition');
+        if (condSelect) {
+          for (let i = 0; i < condSelect.options.length; i++) {
+            if (condSelect.options[i].value.startsWith(req.requestedCondition + '|')) {
+              condSelect.selectedIndex = i;
+              break;
+            }
+          }
+        }
+      }
     }
     
     list.splice(idx, 1);
@@ -3369,7 +3391,10 @@ const RequestsPage = {
     
     tbody.innerHTML = list.map(req => `
       <tr>
-        <td class="fw-bold">${escHtml(req.bookTitle)}</td>
+        <td class="fw-bold">
+          ${escHtml(req.bookTitle)}
+          ${req.requestedCondition ? `<br><small class="text-muted"><i class="fas fa-star" style="color:var(--primary); margin-left:4px;"></i>الجودة المطلوبة: ${escHtml(req.requestedCondition)}</small>` : ''}
+        </td>
         <td>${escHtml(req.borrowerName)}</td>
         <td dir="ltr">${escHtml(req.borrowerPhone)}</td>
         <td>${formatDate(req.createdAt)}</td>
@@ -3414,6 +3439,19 @@ const RequestsPage = {
       document.getElementById('loan-book-search').value = book.title;
       document.getElementById('loan-book-id').value = book.id;
       Loans._selectBook(book);
+      
+      // Auto-select requested condition if available
+      if (req.requestedCondition) {
+        const condSelect = document.getElementById('loan-book-condition');
+        if (condSelect) {
+          for (let i = 0; i < condSelect.options.length; i++) {
+            if (condSelect.options[i].value.startsWith(req.requestedCondition + '|')) {
+              condSelect.selectedIndex = i;
+              break;
+            }
+          }
+        }
+      }
     }
     
     // Remove from requests list
@@ -3530,6 +3568,25 @@ const PublicCatalog = {
   },
   
   requestBook(bookId, title) {
+    const book = Store.getBook(bookId);
+    if (!book) return;
+    
+    const availableCopies = getAvailableCopies(book, Store.loans);
+    let conditionSelectHtml = '';
+    
+    if (availableCopies.length > 0) {
+      // Group conditions to let the public choose which quality/condition they want
+      const uniqueConditions = [...new Set(availableCopies.map(c => c.condition))];
+      conditionSelectHtml = `
+        <div class="form-group" style="margin-top:12px;">
+          <label class="form-label required">جودة نسخة الكتاب المطلوبة</label>
+          <select class="form-control" id="req-borrower-condition" required>
+            ${uniqueConditions.map(cond => `<option value="${escHtml(cond)}">${escHtml(cond)}</option>`).join('')}
+          </select>
+        </div>
+      `;
+    }
+
     Modal.show({
       title: '<i class="fas fa-mobile-alt text-primary"></i> تقديم طلب استعارة ذاتي',
       size: 'sm',
@@ -3539,10 +3596,11 @@ const PublicCatalog = {
           <label class="form-label required">اسمك الثلاثي بالكامل</label>
           <input type="text" class="form-control" id="req-borrower-name" placeholder="أدخل اسمك بالكامل" required>
         </div>
-        <div class="form-group">
+        <div class="form-group" style="margin-top:12px;">
           <label class="form-label required">رقم هاتفك (واتساب)</label>
           <input type="tel" class="form-control" id="req-borrower-phone" placeholder="01xxxxxxxxx" required>
         </div>
+        ${conditionSelectHtml}
       `,
       footer: `
         <button class="btn btn-secondary" onclick="document.body.classList.contains('public-view') ? Modal.closeAll() : PublicCatalog.open()">رجوع</button>
@@ -3566,6 +3624,7 @@ const PublicCatalog = {
 
   _executeRenderDirect() {
     const q = (document.getElementById('public-direct-search')?.value || '').toLowerCase().trim();
+    const sortBy = document.getElementById('public-direct-sort')?.value || 'title_asc';
     const grid = document.getElementById('public-direct-books-grid');
     if (!grid) return;
     
@@ -3580,7 +3639,23 @@ const PublicCatalog = {
         (b.num || '').toString().includes(q) ||
         (b.category || '').toString().toLowerCase().includes(q)
       );
-    } else {
+    }
+    
+    // Apply sorting (الترتيب)
+    list.sort((a, b) => {
+      if (sortBy === 'title_asc') {
+        return (a.title || '').toString().localeCompare(b.title || '', 'ar');
+      } else if (sortBy === 'title_desc') {
+        return (b.title || '').toString().localeCompare(a.title || '', 'ar');
+      } else if (sortBy === 'num_asc') {
+        return parseInt(a.num || 0) - parseInt(b.num || 0);
+      } else if (sortBy === 'num_desc') {
+        return parseInt(b.num || 0) - parseInt(a.num || 0);
+      }
+      return 0;
+    });
+    
+    if (!q) {
       // Show only 12 books by default so it's clean and ultra-fast
       list = list.slice(0, 12);
     }
@@ -3668,6 +3743,7 @@ const PublicCatalog = {
   async submitRequest(bookId, title) {
     const name = document.getElementById('req-borrower-name')?.value.trim();
     const phone = document.getElementById('req-borrower-phone')?.value.trim();
+    const condition = document.getElementById('req-borrower-condition')?.value || '';
     
     if (!name || !phone) { Toast.error('يرجى ملء جميع الحقول المطلوبة'); return; }
     
@@ -3685,6 +3761,7 @@ const PublicCatalog = {
         bookTitle: title,
         borrowerName: name,
         borrowerPhone: phone,
+        requestedCondition: condition,
         createdAt: new Date().toISOString()
       };
       
